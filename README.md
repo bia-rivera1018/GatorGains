@@ -1,14 +1,12 @@
 # GatorGains
-Nutrition and fitness Web Application made for students in college
 
-##Technologies
-- Python
-- Supabase
-- GitHub
-- React.js
+A college fitness and nutrition web app.
+
+[Development status and next steps](STATUS.md)
 
 ## Team
-- - Anat Bimblich - Product Manager
-- Thiago Ramirez - Scrum Master
-- Jacobo Belilty - Development Team Member (Back End Focused)
-- Bianca Rivera - Development Team Member (Front End Focused)
+
+- Anat Bimblich — Product Manager
+- Thiago Ramirez — Scrum Master
+- Jacobo Belilty — Backend
+- Bianca Rivera — Frontend
