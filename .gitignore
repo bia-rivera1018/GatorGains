@@ -1,0 +1,27 @@
+# Local configuration / secrets
+.env
+.env.*
+!.env.example
+!**/.env.example
+*.local
+
+# JavaScript
+node_modules/
+dist/
+coverage/
+.vite/
+
+# Python
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.ruff_cache/
+.venv/
+venv/
+*.egg-info/
+
+# Editors / operating systems
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
