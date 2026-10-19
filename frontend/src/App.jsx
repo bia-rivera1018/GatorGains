@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { supabase } from './lib/supabase.js'
+import { supabase, signUp, logIn, logOut } from './lib/supabase.js'
 import { validateSignup } from './lib/validation.js'
 
 export default function App() {
@@ -11,6 +11,15 @@ export default function App() {
   const [errors, setErrors] = useState({})
   const [signupMessage, setSignupMessage] = useState('')
   const [signupPending, setSignupPending] = useState(false)
+
+  //these track if the student is signing up or logging back in, who is already signed in and if an authentication request is beign processed
+  const [authMode, setAuthMode] = useState('signup') // 'signup' or 'login'
+  const [user, setUser] = useState(null)
+  const [authLoading, setAuthLoading] = useState(true)
+  const [loginMessage, setLoginMessage] = useState('')
+  const [loginPending, setLoginPending] = useState(false)
+
+
 
   // Demo meal entries live in React memory only; FastAPI calculates their total.
   const [mealName, setMealName] = useState('')
@@ -35,6 +44,41 @@ export default function App() {
     return () => controller.abort()
   }, [])
 
+  useEffect(() => {
+    if (!supabase) {
+      setAuthLoading(false)
+      return
+    }
+
+    let active = true
+
+    supabase.auth.getSession().then(({ data, error }) => {
+      if (!active) return
+    
+    if (error){
+      setLoginMessage(error.message)
+    } else {
+      setUser(data.session?.user ?? null)
+    }
+
+    setAuthLoading(false)
+    })
+
+    const { data: { subscription } } =
+      supabase.auth.onAuthStateChange((_event, session) => {
+        if (active) {
+          setUser(session?. user ?? null)
+          setAuthLoading(false)
+        }
+      })
+
+    return () => {
+      active = false
+      subscription.unsubscribe()
+    }
+  }, [])
+
+//this validated student registration and makes an account with Supabase
   async function handleSignup(event) {
     event.preventDefault()
     if (signupPending) return
@@ -50,7 +94,7 @@ export default function App() {
 
     setSignupPending(true)
     try {
-      const { error } = await supabase.auth.signUp({ email: result.email, password })
+      const { error } = await signUp(result.email, password)
       if (error) throw error
       setSignupMessage('Signup request accepted. Check your email if confirmation is enabled.')
       setPassword('')
@@ -60,6 +104,53 @@ export default function App() {
       setSignupPending(false)
     }
   }
+
+
+
+  //LOGIN 
+  async function handleLogin(event) {
+    event.preventDefault()
+    if (loginPending) return
+
+    setLoginMessage('')
+
+    if (!email.trim() || !password.trim()) {
+      setLoginMessage('Please enter your email and password.')
+      return
+    }
+
+    setLoginPending(true)
+
+    try{
+      const {error } = await logIn(email.trim(), password)
+      if (error) throw error
+
+      setLoginMessage('Login successful!')
+      setPassword('')
+    }catch (error) {
+      setLoginMessage(`Login failed: ${error.message}`)
+    }finally {
+      setLoginPending(false)
+      }
+    }
+
+
+    //this signs out the current user and clears the login form of the app
+    async function handleLogout() {
+      setLoginMessage('')
+
+      try {
+        const { error } = await logOut()
+        if (error) throw error
+
+        setUser(null)
+        setEmail('')
+        setPassword('')
+        setAuthMode('login')
+      } catch (error) {
+        setLoginMessage(`Logout failed: ${error.message}`)
+      }
+    }
 
   async function fetchSummary(nextMeals, dailyTarget) {
     const response = await fetch('/api/calories/summary', {
@@ -116,25 +207,90 @@ export default function App() {
       <h1>GatorGains</h1>
       <p className="lede">Two small working pieces: signup checks in JavaScript, and calorie totals from Python.</p>
 
-      <section className="panel" aria-labelledby="signup-title">
-        <h2 id="signup-title">Student signup</h2>
-        <form onSubmit={handleSignup} noValidate>
-          <label htmlFor="email">College email</label>
-          <input id="email" type="email" autoComplete="email" value={email}
-            onChange={(event) => setEmail(event.target.value)} placeholder="student@ufl.edu"
-            aria-invalid={Boolean(errors.email)} aria-describedby={errors.email ? 'email-error' : undefined} />
-          {errors.email && <p className="error" id="email-error" role="alert">{errors.email}</p>}
+      <section className="panel" aria-labelledby="auth-title">
+        <h2 id="auth-title">
+          {user ? 'My Account' : authMode === 'signup'? 'Student Signup' : 'Student Login'}
+        </h2>
+        {authLoading ? (
+          <p>Checking authentication..</p>
+        ) : user ? (
+          <div>
+            <p>Welcome to GatorGains!</p>
+            <p>Logged in as: {user.email}</p>
 
+            <button type="button" onClick={handleLogout}>Logout</button>
+          </div>
+        ) : (
+          <>
+            <div className="auth-toggle">
+              <button type="button"
+              className={authMode === 'signup' ? '' : 'secondary-button'}
+              onClick={() => {
+                setAuthMode('signup')
+                setErrors({})
+                setLoginMessage('')
+                setSignupMessage('')
+              }}
+              >
+                Signup
+              </button>
+
+              <button type="button"
+              className={authMode === 'login' ? '' : 'secondary-button'}
+              onClick={() => {
+                setAuthMode('login')
+                setErrors({})
+                setLoginMessage('')
+                setSignupMessage('')
+              }}
+              >
+                Login
+              </button>
+            </div>
+            <form 
+            onSubmit={authMode === 'signup' ? handleSignup : handleLogin}
+            noValidate
+            > 
+            <label htmlFor="email">College Email</label>
+            <input id="email"
+            type="email"
+            autoComplete="email"
+            value={email}
+            onChange={(event) => setEmail(event.target.value)}
+            placeholder="student@ufl.edu"
+            aria-invalid={authMode === 'signup' && Boolean(errors.email)}
+          />
+          {authMode === 'signup' && errors.email && (
+            <p className="error" role="alert">{errors.email}</p>
+          )}
           <label htmlFor="password">Password</label>
-          <input id="password" type="password" autoComplete="new-password" value={password}
-            onChange={(event) => setPassword(event.target.value)} placeholder="At least 8 characters"
-            aria-invalid={Boolean(errors.password)} aria-describedby={errors.password ? 'password-error' : undefined} />
-          {errors.password && <p className="error" id="password-error" role="alert">{errors.password}</p>}
-
-          <button type="submit" disabled={signupPending}>{signupPending ? 'Creating account…' : 'Create account'}</button>
-          {signupMessage && <p className="message" role="status">{signupMessage}</p>}
-        </form>
-      </section>
+          <input id="password"
+          type="password"
+          autoComplete={authMode === 'signup' ? 'new-password' : 'current-password'}
+          value={password}
+          onChange={(event) => setPassword(event.target.value)}
+          placeholder="Enter password"
+          aria-invalid={authMode === 'signup' && Boolean(errors.password)}
+          />
+          {authMode === 'signup' && errors.password && (
+            <p className="error" role="alert">{errors.password}</p>
+          )}
+          <button type="submit"
+          disabled={signupPending || loginPending}
+          > 
+          {authMode ==='signup' ? signupPending ? 'Creating Account...' : 'Create Account'
+          : loginPending ? 'Logging In...' : 'Log In'}
+          </button>
+          {authMode === 'signup' && signupMessage && (
+            <p className="message" role="status">{signupMessage}</p>
+          )}
+          {authMode === 'login' && loginMessage && (
+            <p className="message" role="status">{loginMessage}</p>
+          )}
+          </form>
+        </>
+      )}
+    </section>
 
       <section className="panel" aria-labelledby="meals-title">
         <h2 id="meals-title">Daily calorie tracker (demo)</h2>
