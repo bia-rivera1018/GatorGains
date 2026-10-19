@@ -4,7 +4,6 @@ from app.main import app
 
 client = TestClient(app)
 
-
 def test_empty_day():
     response = client.post("/api/calories/summary", json={"meals": [], "daily_target": 2000})
     assert response.status_code == 200
@@ -13,7 +12,6 @@ def test_empty_day():
         "daily_target": 2000,
         "remaining_calories": 2000,
     }
-
 
 def test_meals_are_added_up():
     response = client.post(
@@ -27,7 +25,6 @@ def test_meals_are_added_up():
     assert response.json()["total_calories"] == 950
     assert response.json()["remaining_calories"] == 1050
 
-
 def test_over_target_is_negative_remaining():
     response = client.post(
         "/api/calories/summary",
@@ -36,7 +33,6 @@ def test_over_target_is_negative_remaining():
     assert response.status_code == 200
     assert response.json()["remaining_calories"] == -200
 
-
 def test_rejects_negative_calories():
     response = client.post(
         "/api/calories/summary",
@@ -44,7 +40,29 @@ def test_rejects_negative_calories():
     )
     assert response.status_code == 422
 
-
 def test_rejects_invalid_target():
     response = client.post("/api/calories/summary", json={"meals": [], "daily_target": 0})
+    assert response.status_code == 422
+
+def test_zero_calorie_meal():
+    response = client.post(
+        "/api/calories/summary",
+        json={"meals": [{"name": "Water", "calories": 0}], "daily_target": 2000},
+    )
+    assert response.status_code == 200
+    assert response.json()["total_calories"] == 0
+    assert response.json()["remaining_calories"] == 2000
+
+def test_rejects_negative_daily_target():
+    response = client.post(
+        "/api/calories/summary",
+        json={"meals": [], "daily_target": -500},
+    )
+    assert response.status_code == 422
+
+def test_rejects_missing_calories():
+    response = client.post(
+        "/api/calories/summary",
+        json={"meals": [{"name": "Lunch"}], "daily_target": 2000},
+    )
     assert response.status_code == 422
