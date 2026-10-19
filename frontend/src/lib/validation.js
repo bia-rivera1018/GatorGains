@@ -16,6 +16,10 @@ export function validateSignup(email, password) {
     errors.password = 'Password is required.'
   } else if (password.length < 8) {
     errors.password = 'Password must be at least 8 characters.'
+  } else if (!/[a-zA-Z]/.test(password)) {
+    errors.password = 'Password must contain at least one letter.'
+  } else if (!/[0-9]/.test(password)) {
+    errors.password = 'Password must contain at least one number.'
   }
 
   return { valid: Object.keys(errors).length === 0, errors, email: normalizedEmail }
