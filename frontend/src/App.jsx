@@ -209,8 +209,8 @@ export default function App() {
     <main className="container">
       <p className="eyebrow">College fitness &amp; nutrition</p>
       <h1>GatorGains</h1>
-      <p className="lede">Two small working pieces: signup checks in JavaScript, and calorie totals from Python.</p>
-
+      <p className="lede">Track your fitness, nutrition, and daily progress all in one place.</p>
+    {!authLoading && !user && (
       <section className="panel" aria-labelledby="auth-title">
         <h2 id="auth-title">
           {user ? 'My Account' : authMode === 'signup'? 'Student Signup' : 'Student Login'}
@@ -295,7 +295,16 @@ export default function App() {
         </>
       )}
     </section>
+  )}
+{/* Only show dashboard when logged in */}
+{!authLoading && user && (
+  <>
+  {/* Wlecome message and Logout button */}
+  <div className="dashboard-header">
+    <p>Welcome to GatorGains, {user.email}!</p>
 
+    <button type="button" onClick={handleLogout}>Logout</button>
+  </div>
       {/* Main navigation for GatorGains */}
       <nav className="main-nav" aria-label="Main Dashboardnavigation">
         <button
@@ -358,9 +367,12 @@ export default function App() {
         )}
         {mealError && <p className="error" role="alert">{mealError}</p>}
       </section>
+        )}
+       </>
       )}
       <p className="dev-status">Python API: <strong>{apiStatus}</strong> · Supabase: <strong>{supabase ? 'Configured' : 'Not configured'}</strong></p>
       <p className="note">Signup uses temporary browser-only rules (.edu email, 8-character password). These are not secure signup restrictions; the team still needs to enforce its agreed policy through authentication.</p>
+     
     </main>
-  )
-}
+    
+  )}
