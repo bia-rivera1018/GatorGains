@@ -27,4 +27,14 @@ describe('validateSignup', () => {
   it('rejects short passwords', () => {
     expect(validateSignup('student@ufl.edu', 'short').errors.password).toBeTruthy()
   })
+  
+  it('rejects passwords without letters', () => {
+    const result = validateSignup('student@ufl.edu', '12345678')
+    expect(result.errors.password).toBe('Password must contain at least one letter.')
+  })
+
+  it('rejects passwords without numbers', () => {
+    const result = validateSignup('student@ufl.edu', 'passwordonly')
+    expect(result.errors.password).toBe('Password must contain at least one number.')
+  })
 })
