@@ -114,7 +114,7 @@ export default function App() {
 
     setLoginMessage('')
 
-    if (!email.trim() || !password) {
+    if (!email.trim() || !password.trim()) {
       setLoginMessage('Please enter your email and password.')
       return
     }
@@ -207,25 +207,90 @@ export default function App() {
       <h1>GatorGains</h1>
       <p className="lede">Two small working pieces: signup checks in JavaScript, and calorie totals from Python.</p>
 
-      <section className="panel" aria-labelledby="signup-title">
-        <h2 id="signup-title">Student signup</h2>
-        <form onSubmit={handleSignup} noValidate>
-          <label htmlFor="email">College email</label>
-          <input id="email" type="email" autoComplete="email" value={email}
-            onChange={(event) => setEmail(event.target.value)} placeholder="student@ufl.edu"
-            aria-invalid={Boolean(errors.email)} aria-describedby={errors.email ? 'email-error' : undefined} />
-          {errors.email && <p className="error" id="email-error" role="alert">{errors.email}</p>}
+      <section className="panel" aria-labelledby="auth-title">
+        <h2 id="auth-title">
+          {user ? 'My Account' : authMode === 'signup'? 'Student Signup' : 'Student Login'}
+        </h2>
+        {authLoading ? (
+          <p>Checking authentication..</p>
+        ) : user ? (
+          <div>
+            <p>Welcome to GatorGains!</p>
+            <p>Logged in as: {user.email}</p>
 
+            <button type="button" onClick={handleLogout}>Logout</button>
+          </div>
+        ) : (
+          <>
+            <div className="auth-toggle">
+              <button type="button"
+              className={authMode === 'signup' ? '' : 'secondary-button'}
+              onClick={() => {
+                setAuthMode('signup')
+                setErrors({})
+                setLoginMessage('')
+                setSignupMessage('')
+              }}
+              >
+                Signup
+              </button>
+
+              <button type="button"
+              className={authMode === 'login' ? '' : 'secondary-button'}
+              onClick={() => {
+                setAuthMode('login')
+                setErrors({})
+                setLoginMessage('')
+                setSignupMessage('')
+              }}
+              >
+                Login
+              </button>
+            </div>
+            <form 
+            onSubmit={authMode === 'signup' ? handleSignup : handleLogin}
+            noValidate
+            > 
+            <label htmlFor="email">College Email</label>
+            <input id="email"
+            type="email"
+            autoComplete="email"
+            value={email}
+            onChange={(event) => setEmail(event.target.value)}
+            placeholder="student@ufl.edu"
+            aria-invalid={authMode === 'signup' && Boolean(errors.email)}
+          />
+          {authMode === 'signup' && errors.email && (
+            <p className="error" role="alert">{errors.email}</p>
+          )}
           <label htmlFor="password">Password</label>
-          <input id="password" type="password" autoComplete="new-password" value={password}
-            onChange={(event) => setPassword(event.target.value)} placeholder="At least 8 characters"
-            aria-invalid={Boolean(errors.password)} aria-describedby={errors.password ? 'password-error' : undefined} />
-          {errors.password && <p className="error" id="password-error" role="alert">{errors.password}</p>}
-
-          <button type="submit" disabled={signupPending}>{signupPending ? 'Creating account…' : 'Create account'}</button>
-          {signupMessage && <p className="message" role="status">{signupMessage}</p>}
-        </form>
-      </section>
+          <input id="password"
+          type="password"
+          autoComplete={authMode === 'signup' ? 'new-password' : 'current-password'}
+          value={password}
+          onChange={(event) => setPassword(event.target.value)}
+          placeholder="Enter password"
+          aria-invalid={authMode === 'signup' && Boolean(errors.password)}
+          />
+          {authMode === 'signup' && errors.password && (
+            <p className="error" role="alert">{errors.password}</p>
+          )}
+          <button type="submit"
+          disabled={signupPending || loginPending}
+          > 
+          {authMode ==='signup' ? signupPending ? 'Creating Account...' : 'Create Account'
+          : loginPending ? 'Logging In...' : 'Log In'}
+          </button>
+          {authMode === 'signup' && signupMessage && (
+            <p className="message" role="status">{signupMessage}</p>
+          )}
+          {authMode === 'login' && loginMessage && (
+            <p className="message" role="status">{loginMessage}</p>
+          )}
+          </form>
+        </>
+      )}
+    </section>
 
       <section className="panel" aria-labelledby="meals-title">
         <h2 id="meals-title">Daily calorie tracker (demo)</h2>
