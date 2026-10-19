@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { supabase } from './lib/supabase.js'
+import { supabase, signUp, logIn, logOut } from './lib/supabase.js'
 import { validateSignup } from './lib/validation.js'
 
 export default function App() {
@@ -11,6 +11,15 @@ export default function App() {
   const [errors, setErrors] = useState({})
   const [signupMessage, setSignupMessage] = useState('')
   const [signupPending, setSignupPending] = useState(false)
+
+  //these track if the student is signing up or logging back in, who is already signed in and if an authentication request is beign processed
+  const [authMode, setAuthMode] = useState('signup') // 'signup' or 'login'
+  const [user, setUser] = useState(null)
+  const [authLoading, setAuthLoading] = useState(true)
+  const [loginMessage, setLoginMessage] = useState('')
+  const [loginPending, setLoginPending] = useState(false)
+
+
 
   // Demo meal entries live in React memory only; FastAPI calculates their total.
   const [mealName, setMealName] = useState('')
@@ -35,6 +44,41 @@ export default function App() {
     return () => controller.abort()
   }, [])
 
+  useEffect(() => {
+    if (!supabase) {
+      setAuthLoading(false)
+      return
+    }
+
+    let active = true
+
+    supabase.auth.getSession().then(({ data, error }) => {
+      if (!active) return
+    
+    if (error){
+      setLoginMessage(error.message)
+    } else {
+      setUser(data.session?.user ?? null)
+    }
+
+    setAuthLoading(false)
+    })
+
+    const { data: { subscription } } =
+      supabase.auth.onAuthStateChange((_event, session) => {
+        if (active) {
+          setUser(session?. user ?? null)
+          setAuthLoading(false)
+        }
+      })
+
+    return () => {
+      active = false
+      subscription.unsubscribe()
+    }
+  }, [])
+
+//this validated student registration and makes an account with Supabase
   async function handleSignup(event) {
     event.preventDefault()
     if (signupPending) return
@@ -50,7 +94,7 @@ export default function App() {
 
     setSignupPending(true)
     try {
-      const { error } = await supabase.auth.signUp({ email: result.email, password })
+      const { error } = await signUp(result.email, password)
       if (error) throw error
       setSignupMessage('Signup request accepted. Check your email if confirmation is enabled.')
       setPassword('')
@@ -60,6 +104,53 @@ export default function App() {
       setSignupPending(false)
     }
   }
+
+
+
+  //LOGIN 
+  async function handleLogin(event) {
+    event.preventDefault()
+    if (loginPending) return
+
+    setLoginMessage('')
+
+    if (!email.trim() || !password) {
+      setLoginMessage('Please enter your email and password.')
+      return
+    }
+
+    setLoginPending(true)
+
+    try{
+      const {error } = await logIn(email.trim(), password)
+      if (error) throw error
+
+      setLoginMessage('Login successful!')
+      setPassword('')
+    }catch (error) {
+      setLoginMessage(`Login failed: ${error.message}`)
+    }finally {
+      setLoginPending(false)
+      }
+    }
+
+
+    //this signs out the current user and clears the login form of the app
+    async function handleLogout() {
+      setLoginMessage('')
+
+      try {
+        const { error } = await logOut()
+        if (error) throw error
+
+        setUser(null)
+        setEmail('')
+        setPassword('')
+        setAuthMode('login')
+      } catch (error) {
+        setLoginMessage(`Logout failed: ${error.message}`)
+      }
+    }
 
   async function fetchSummary(nextMeals, dailyTarget) {
     const response = await fetch('/api/calories/summary', {
