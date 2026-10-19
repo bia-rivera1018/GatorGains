@@ -30,3 +30,12 @@ button:disabled { opacity: .6; cursor: not-allowed; }
 .totals { padding: 1rem; border-radius: 8px; background: #edf7ee; line-height: 1.6; }
 .dev-status, .note { color: #526a5c; font-size: .85rem; line-height: 1.5; }
 .note { margin-top: .5rem; }
+
+/* Progress and Nutrition tab navigation */
+.dashboard-nav {display: flex; gap: 10px; margin: 24px 0; padding: 8px; background-color: #e8f1e9; border-radius: 12px;}
+
+.nav-button { flex: 1; padding: 14px; background-color: transparent; color: #216e43; border: none; border-radius: 8px; font-weight: 600; cursor: pointer;}
+
+.nav-button.active {background-color: #247547; color: white;}
+
+.nav-button:not(.active):hover { background-color: #d5e6d9;}

@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react'
 import { supabase, signUp, logIn, logOut } from './lib/supabase.js'
 import { validateSignup } from './lib/validation.js'
+import ProgressTab from './components/progressTab.jsx'
+
 
 export default function App() {
   const [apiStatus, setApiStatus] = useState('Checking…')
@@ -29,6 +31,8 @@ export default function App() {
   const [summary, setSummary] = useState(null)
   const [mealError, setMealError] = useState('')
   const [mealPending, setMealPending] = useState(false)
+
+  const [activeTab, setActiveTab] = useState('progress') //tracks which section of GatorGains is being displayed to the user
 
   useEffect(() => {
     const controller = new AbortController()
@@ -292,6 +296,29 @@ export default function App() {
       )}
     </section>
 
+      {/* Main navigation for GatorGains */}
+      <nav className="main-nav" aria-label="Main Dashboardnavigation">
+        <button
+          type="button"
+          className={activeTab === 'progress' ? 'nav-button active' : 'nav-button'}
+          onClick={() => setActiveTab('progress')}
+          >
+          Progress
+          </button>
+          <button
+          type="button"
+          className={activeTab === 'nutrition' ? 'nav-button active' : 'nav-button'}
+          onClick={() => setActiveTab('nutrition')}
+          >
+          Nutrition
+          </button>
+          </nav>
+
+
+
+      {activeTab === 'progress' && (<ProgressTab summary={summary} />)}
+
+      {activeTab === 'nutrition' && (
       <section className="panel" aria-labelledby="meals-title">
         <h2 id="meals-title">Daily calorie tracker (demo)</h2>
         <p className="hint">Add meals and Python will calculate your total. Entries are not saved when you refresh.</p>
@@ -331,7 +358,7 @@ export default function App() {
         )}
         {mealError && <p className="error" role="alert">{mealError}</p>}
       </section>
-
+      )}
       <p className="dev-status">Python API: <strong>{apiStatus}</strong> · Supabase: <strong>{supabase ? 'Configured' : 'Not configured'}</strong></p>
       <p className="note">Signup uses temporary browser-only rules (.edu email, 8-character password). These are not secure signup restrictions; the team still needs to enforce its agreed policy through authentication.</p>
     </main>
