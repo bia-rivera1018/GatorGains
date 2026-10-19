@@ -3,7 +3,7 @@ import { validateSignup } from './validation.js'
 
 describe('validateSignup', () => {
   it('accepts a student email and adequate password', () => {
-    expect(validateSignup(' Student@UFL.edu ', 'example-password')).toEqual({
+    expect(validateSignup(' Student@UFL.edu ', 'example-password1')).toEqual({
       valid: true,
       errors: {},
       email: 'student@ufl.edu',
