@@ -1,7 +1,10 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { supabase, signUp, logIn, logOut } from './lib/supabase.js'
 import { validateSignup } from './lib/validation.js'
+import { localDateKey, shiftDateKey, formatDateKey } from './lib/dateUtils.js'
+import { getMealsForDate, saveMeal, deleteMeal } from './lib/mealLogs.js'
 import ProgressTab from './components/progressTab.jsx'
+import './styles/journal.css'
 
 
 export default function App() {
@@ -23,14 +26,24 @@ export default function App() {
 
 
 
-  // Demo meal entries live in React memory only; FastAPI calculates their total.
+  // Supabase is the source of truth for meals; the calorie target remains
+  // session-only until we implement fitness_goals persistence.
+  const [selectedDate, setSelectedDate] = useState(localDateKey)
   const [mealName, setMealName] = useState('')
   const [mealCalories, setMealCalories] = useState('')
   const [targetInput, setTargetInput] = useState('2000')
+  const [dailyTarget, setDailyTarget] = useState(2000)
   const [meals, setMeals] = useState([])
+  const [loadedMealsFor, setLoadedMealsFor] = useState(null)
+  const [mealLoading, setMealLoading] = useState(false)
   const [summary, setSummary] = useState(null)
+  const [summaryPending, setSummaryPending] = useState(false)
+  const [summaryError, setSummaryError] = useState('')
   const [mealError, setMealError] = useState('')
   const [mealPending, setMealPending] = useState(false)
+  const currentContextRef = useRef('')
+  const currentContext = `${user?.id ?? ''}|${selectedDate}`
+  currentContextRef.current = currentContext
 
   const [activeTab, setActiveTab] = useState('progress') //tracks which section of GatorGains is being displayed to the user
 
@@ -81,6 +94,72 @@ export default function App() {
       subscription.unsubscribe()
     }
   }, [])
+
+  // Load only the selected date for the current account. Cancelling stale
+  // results prevents a quick date/account switch showing someone else's data.
+  useEffect(() => {
+    if (!user?.id) {
+      setMeals([])
+      setLoadedMealsFor(null)
+      setSummary(null)
+      setMealError('')
+      setMealLoading(false)
+      return
+    }
+    let active = true
+    const requestedContext = `${user.id}|${selectedDate}`
+    setMealLoading(true)
+    setLoadedMealsFor(null)
+    setMeals([])
+    setSummary(null)
+    setMealError('')
+
+    getMealsForDate(user.id, selectedDate)
+      .then((savedMeals) => {
+        if (!active) return
+        setMeals(savedMeals)
+        setLoadedMealsFor(requestedContext)
+      })
+      .catch((error) => {
+        if (active) setMealError(`Unable to load meals: ${error.message}`)
+      })
+      .finally(() => {
+        if (active) setMealLoading(false)
+      })
+    return () => { active = false }
+  }, [user?.id, selectedDate])
+
+  // Recalculate when saved meals or the applied target changes. No meals are
+  // ever erased if FastAPI is offline; the summary just displays an error.
+  useEffect(() => {
+    if (!user?.id || loadedMealsFor !== `${user.id}|${selectedDate}`) {
+      setSummary(null)
+      setSummaryError('')
+      setSummaryPending(false)
+      return
+    }
+    let active = true
+    const controller = new AbortController()
+    setSummaryPending(true)
+    setSummaryError('')
+    fetchSummary(meals, dailyTarget, controller.signal)
+      .then((result) => {
+        if (active) setSummary(result)
+      })
+      .catch((error) => {
+        if (active && error.name !== 'AbortError') {
+          setSummary(null)
+          setSummaryError(`Unable to calculate totals: ${error.message}`)
+        }
+      })
+      .finally(() => {
+        if (active) setSummaryPending(false)
+      })
+    return () => {
+      active = false
+      controller.abort()
+    }
+  }, [user?.id, selectedDate, loadedMealsFor, meals, dailyTarget])
 
 //this validated student registration and makes an account with Supabase
   async function handleSignup(event) {
@@ -156,52 +235,69 @@ export default function App() {
       }
     }
 
-  async function fetchSummary(nextMeals, dailyTarget) {
+  async function fetchSummary(nextMeals, target, signal) {
     const response = await fetch('/api/calories/summary', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ meals: nextMeals, daily_target: dailyTarget }),
+      body: JSON.stringify({ meals: nextMeals, daily_target: target }),
+      signal,
     })
     if (!response.ok) throw new Error(`Python API returned HTTP ${response.status}`)
     return response.json()
   }
 
-  function readTarget() {
-    const target = Number(targetInput)
-    if (!Number.isSafeInteger(target) || target <= 0) {
-      throw new Error('Enter a positive whole-number daily calorie target.')
+  function updateTarget() {
+    const value = Number(targetInput)
+    if (!Number.isSafeInteger(value) || value <= 0) {
+      setMealError('Enter a positive whole-number daily calorie target.')
+      return
     }
-    return target
-  }
-
-  async function updateMeals(nextMeals) {
-    setMealPending(true)
     setMealError('')
-    try {
-      const result = await fetchSummary(nextMeals, readTarget())
-      setMeals(nextMeals)
-      setSummary(result)
-      return true
-    } catch (error) {
-      setMealError(error.message)
-      return false
-    } finally {
-      setMealPending(false)
-    }
+    setDailyTarget(value)
   }
 
   async function addMeal(event) {
     event.preventDefault()
-    if (mealPending) return
+    if (mealPending || mealLoading || loadedMealsFor !== currentContext) return
     const calories = Number(mealCalories)
     if (!mealName.trim() || mealCalories.trim() === '' || !Number.isSafeInteger(calories) || calories < 0) {
       setMealError('Enter a meal name and a nonnegative whole-number calorie amount.')
       return
     }
-    const saved = await updateMeals([...meals, { name: mealName.trim(), calories }])
-    if (saved) {
-      setMealName('')
-      setMealCalories('')
+    const requestContext = currentContext
+    const mealDate = selectedDate
+    const userId = user.id
+    setMealPending(true)
+    setMealError('')
+    try {
+      const saved = await saveMeal(userId, mealDate, { name: mealName, calories })
+      if (currentContextRef.current === requestContext) {
+        setMeals((current) => [...current, saved])
+        setMealName('')
+        setMealCalories('')
+      }
+    } catch (error) {
+      if (currentContextRef.current === requestContext) setMealError(`Meal not saved: ${error.message}`)
+    } finally {
+      setMealPending(false)
+    }
+  }
+
+  async function removeMeal(mealId) {
+    if (mealPending || mealLoading || loadedMealsFor !== currentContext) return
+    const requestContext = currentContext
+    const userId = user.id
+    setMealPending(true)
+    setMealError('')
+    try {
+      await deleteMeal(userId, mealId)
+      if (currentContextRef.current === requestContext) {
+        setMeals((current) => current.filter((meal) => meal.id !== mealId))
+      }
+    } catch (error) {
+      if (currentContextRef.current === requestContext) setMealError(`Meal not deleted: ${error.message}`)
+    } finally {
+      setMealPending(false)
     }
   }
 
@@ -325,46 +421,69 @@ export default function App() {
 
 
 
-      {activeTab === 'progress' && (<ProgressTab summary={summary} />)}
+      {activeTab === 'progress' && (
+        <ProgressTab
+          summary={loadedMealsFor === currentContext ? summary : null}
+          selectedDate={formatDateKey(selectedDate)}
+          loading={mealLoading || summaryPending || (loadedMealsFor !== currentContext && !mealError)}
+          error={mealError || summaryError}
+        />
+      )}
 
       {activeTab === 'nutrition' && (
       <section className="panel" aria-labelledby="meals-title">
-        <h2 id="meals-title">Daily calorie tracker (demo)</h2>
-        <p className="hint">Add meals and Python will calculate your total. Entries are not saved when you refresh.</p>
+        <h2 id="meals-title">Daily meal journal</h2>
+        <nav className="journal-date-nav" aria-label="Meal journal date">
+          <button type="button" className="secondary-button" disabled={mealPending}
+            onClick={() => setSelectedDate((date) => shiftDateKey(date, -1))}>Previous Day</button>
+          <strong aria-live="polite">{formatDateKey(selectedDate)}</strong>
+          <button type="button" className="secondary-button" disabled={mealPending}
+            onClick={() => setSelectedDate((date) => shiftDateKey(date, 1))}>Next Day</button>
+          <button type="button" className="secondary-button" disabled={mealPending}
+            onClick={() => setSelectedDate(localDateKey())}>Today</button>
+        </nav>
+        <p className="hint">Meals are saved to your account for the selected date. Daily calorie targets are not saved yet.</p>
         <form onSubmit={addMeal} noValidate>
           <label htmlFor="meal-name">Meal name</label>
           <input id="meal-name" value={mealName} onChange={(event) => setMealName(event.target.value)} placeholder="Lunch" />
           <label htmlFor="meal-calories">Calories</label>
           <input id="meal-calories" type="number" min="0" step="1" value={mealCalories}
             onChange={(event) => setMealCalories(event.target.value)} placeholder="450" />
-          <button type="submit" disabled={mealPending}>{mealPending ? 'Calculating…' : 'Add meal'}</button>
+          <button type="submit" disabled={mealPending || mealLoading || loadedMealsFor !== currentContext}>
+            {mealPending ? 'Saving…' : 'Add meal'}
+          </button>
         </form>
 
         <div className="target-row">
-          <label htmlFor="daily-target">Daily target</label>
+          <label htmlFor="daily-target">Daily target (this session)</label>
           <input id="daily-target" type="number" min="1" step="1" value={targetInput}
             onChange={(event) => setTargetInput(event.target.value)} />
-          <button type="button" className="secondary-button" disabled={mealPending}
-            onClick={() => updateMeals(meals)}>Update total</button>
+          <button type="button" className="secondary-button" onClick={updateTarget}>Update total</button>
         </div>
 
-        {meals.length > 0 && (
+        {mealLoading && <p role="status">Loading saved meals…</p>}
+        {!mealLoading && loadedMealsFor === currentContext && meals.length === 0 && (
+          <p className="hint">No meals recorded for this date.</p>
+        )}
+        {!mealLoading && loadedMealsFor === currentContext && meals.length > 0 && (
           <ul className="meal-list">
-            {meals.map((meal, index) => (
-              <li key={index}>
+            {meals.map((meal) => (
+              <li key={meal.id}>
                 <span>{meal.name} — {meal.calories} cal</span>
                 <button type="button" className="text-button" disabled={mealPending}
-                  onClick={() => updateMeals(meals.filter((_, itemIndex) => itemIndex !== index))}>Remove</button>
+                  onClick={() => removeMeal(meal.id)}>Remove</button>
               </li>
             ))}
           </ul>
         )}
-        {summary && (
+        {summaryPending && <p role="status">Calculating daily total…</p>}
+        {summary && !summaryPending && loadedMealsFor === currentContext && (
           <p className="totals" role="status">
             <strong>{summary.total_calories}</strong> eaten / {summary.daily_target} target ·{' '}
             <strong>{summary.remaining_calories}</strong> remaining
           </p>
         )}
+        {summaryError && <p className="error" role="alert">{summaryError}</p>}
         {mealError && <p className="error" role="alert">{mealError}</p>}
       </section>
         )}
