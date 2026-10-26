@@ -1,0 +1,16 @@
+/* Functional date selector for the Sprint 1 meal journal. */
+.journal-date-nav {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: .65rem;
+  margin-bottom: 1rem;
+}
+.journal-date-nav strong {
+  flex: 1 1 100%;
+  text-align: center;
+}
+.journal-date-nav button {
+  flex: 1 1 auto;
+  margin: 0;
+}
