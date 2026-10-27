@@ -33,10 +33,14 @@ button:disabled { opacity: .6; cursor: not-allowed; }
 
 /* Progress and Nutrition tab navigation */
 <<<<<<< HEAD
+<<<<<<< HEAD
 .dashboard-nav {display: flex; gap: 10px; margin: 24px 0; padding: 8px; background-color: #e8f1e9; border-radius: 12px;}
 =======
 .main-nav {display: flex; gap: 10px; margin: 24px 0; padding: 8px; background-color: #e8f1e9; border-radius: 12px;}
 >>>>>>> origin/main
+=======
+.main-nav {display: flex; gap: 10px; margin: 24px 0; padding: 8px; background-color: #e8f1e9; border-radius: 12px;}
+>>>>>>> 0d282738ee1373b71bd6e9983380911aa240bb24
 
 .nav-button { flex: 1; padding: 14px; background-color: transparent; color: #216e43; border: none; border-radius: 8px; font-weight: 600; cursor: pointer;}
 
