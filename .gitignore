@@ -3,6 +3,9 @@
 .env.*
 !.env.example
 !**/.env.example
+# The shared Supabase project uses a public, frontend-safe publishable key.
+# Keep machine-specific overrides and any private credentials ignored.
+!frontend/.env.development
 *.local
 
 # JavaScript
